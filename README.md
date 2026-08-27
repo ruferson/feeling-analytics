@@ -1,0 +1,2 @@
+# feeling-analytics
+FeelinG FastAPI
