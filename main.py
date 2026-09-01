@@ -42,7 +42,6 @@ class SongInfoResponse(BaseModel):
     song: str
     artist: str
     isPlaying: bool
-    animationStyle: str
     synced: bool
     spotifyPlayback: dict[str, Any] | None = None
 
@@ -149,7 +148,6 @@ def get_node_song(node_id: str) -> SongInfoResponse:
                         song="",
                         artist="",
                         isPlaying=False,
-                        animationStyle="pulse_neon",
                         synced=False,
                         spotifyPlayback=data,
                     )
@@ -166,7 +164,6 @@ def get_node_song(node_id: str) -> SongInfoResponse:
                     song=song_name,
                     artist=artist_name,
                     isPlaying=True,
-                    animationStyle="pulse_neon",
                     synced=True,
                     spotifyPlayback=data,
                 )
@@ -178,7 +175,6 @@ def get_node_song(node_id: str) -> SongInfoResponse:
         song="",
         artist="",
         isPlaying=False,
-        animationStyle="pulse_neon",
         synced=False,
     )
 
