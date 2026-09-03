@@ -51,6 +51,38 @@ class SpotifyAccountResponse(BaseModel):
     spotifyDisplayName: str | None = None
 
 
+def refresh_spotify_token(node_id: str) -> str | None:
+    """Helper utility to automatically refresh expired Spotify OAuth access tokens using the stored refresh_token."""
+    tokens = user_spotify_tokens.get(node_id)
+    if not tokens or not tokens.get("refresh_token"):
+        return None
+
+    token_url = "https://accounts.spotify.com/api/token"
+    body = {
+        "grant_type": "refresh_token",
+        "refresh_token": tokens["refresh_token"],
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET,
+    }
+
+    try:
+        response = requests.post(token_url, data=body, timeout=10)
+        if response.status_code == 200:
+            new_data = response.json()
+            new_access_token = new_data.get("access_token")
+            user_spotify_tokens[node_id]["access_token"] = new_access_token
+            # Spotify optionally returns a new refresh_token
+            if new_data.get("refresh_token"):
+                user_spotify_tokens[node_id]["refresh_token"] = new_data.get(
+                    "refresh_token"
+                )
+            return new_access_token
+    except Exception:
+        pass
+
+    return None
+
+
 @app.get("/")
 def read_root() -> dict[str, str]:
     return {"status": "ok", "service": "feeling-analytics"}
@@ -133,13 +165,27 @@ def get_node_song(node_id: str) -> SongInfoResponse:
     tokens = user_spotify_tokens.get(node_id)
 
     if tokens and tokens.get("access_token"):
-        headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+        access_token = tokens.get("access_token")
+
+        headers = {"Authorization": f"Bearer {access_token}"}
         try:
             response = requests.get(
                 "https://api.spotify.com/v1/me/player/currently-playing",
                 headers=headers,
                 timeout=10,
             )
+
+            # If token expired (401 Unauthorized), attempt to refresh and retry request
+            if response.status_code == 401:
+                refreshed_token = refresh_spotify_token(node_id)
+                if refreshed_token:
+                    headers = {"Authorization": f"Bearer {refreshed_token}"}
+                    response = requests.get(
+                        "https://api.spotify.com/v1/me/player/currently-playing",
+                        headers=headers,
+                        timeout=10,
+                    )
+
             if response.status_code == 200:
                 data = response.json()
                 if not data.get("is_playing") or not data.get("item"):
@@ -148,7 +194,7 @@ def get_node_song(node_id: str) -> SongInfoResponse:
                         song="",
                         artist="",
                         isPlaying=False,
-                        synced=False,
+                        synced=True,  # Synced successfully, user is simply idle/paused
                         spotifyPlayback=data,
                     )
 
